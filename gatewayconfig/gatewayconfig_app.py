@@ -112,20 +112,8 @@ class GatewayconfigApp:
     def init_nmcli(self):
         nmcli_custom.disable_use_sudo()
 
-    def check_password_reset(self):
-        try:
-            resp = requests.post(
-                'http://diagnostics/password_reset',
-                timeout=5
-            )
-            password_reset_data = resp.json()
-            return password_reset_data.get('password_updated')
-        except Exception:
-            return False
-
     def button_held(self):
-        if not self.check_password_reset():
-            self.start_bluetooth_advertisement()
+        self.start_bluetooth_advertisement()
 
     def init_gpio(self, variant):
         """

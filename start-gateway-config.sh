@@ -1,14 +1,15 @@
 #! /bin/bash
 
 # Wait for the diagnostics app to be loaded
-until wget -q -T 10 -O - http://diagnostics/json > /dev/null 2>&1
+DIAGNOSTICS_JSON_URL=${DIAGNOSTICS_JSON_URL:-'http://diagnostics/json'}
+
+until curl -s -m 10 -o /dev/null $DIAGNOSTICS_JSON_URL
 do
-    echo "Diagnostics container not ready. Going to sleep."
+    echo "Diagnostics container not ready. Sleeping 10s."
     sleep 10
 done
 
 # Load dbus-wait script
-# shellcheck source=/dev/null
 source /opt/dbus-wait.sh
 
 # Advertise on channels 37, 38 and 39
@@ -21,7 +22,6 @@ echo 153 > /sys/kernel/debug/bluetooth/hci0/adv_max_interval
 printf "pairable off\nquit" | /usr/bin/bluetoothctl
 
 # Load setenv script
-# shellcheck source=/dev/null
 source /opt/setenv.sh
 
 prevent_start="${PREVENT_START_GATEWAYCONFIG:-0}"

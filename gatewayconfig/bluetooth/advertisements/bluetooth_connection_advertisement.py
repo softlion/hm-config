@@ -15,7 +15,7 @@ class BluetoothConnectionAdvertisement(Advertisement):
 
         if 'APPNAME' in variant_details:
             friendly_variant = variant_details['APPNAME']
-            advertisement_name = "Nebra %s Hotspot %s" % (friendly_variant, friendly_mac_address)
+            advertisement_name = "Helium %s Hotspot %s" % (friendly_variant, friendly_mac_address)
         else:
             friendly_variant = variant_details['FRIENDLY']
             advertisement_name = "%s %s" % (friendly_variant, friendly_mac_address)

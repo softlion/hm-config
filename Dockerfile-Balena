@@ -1,10 +1,14 @@
+# Nebra Helium Hotspot - BTLE Configuration Software Container
+# (C) Nebra LTD. 2021
 # Licensed under the MIT License.
+
+ARG BUILD_BOARD
 
 ####################################################################################################
 ################################## Stage: builder ##################################################
 
 # The balenalib/raspberry-pi-debian-python image was tested but missed many dependencies.
-FROM python:3-bookworm AS builder
+FROM balenalib/"$BUILD_BOARD"-debian:bullseye-build-20230530 AS builder
 
 # Nebra uses /opt by convention
 WORKDIR /opt/
@@ -53,7 +57,7 @@ RUN \
 ####################################################################################################
 ################################### Stage: runner ##################################################
 
-FROM python:3.12-slim-bookworm AS runner
+FROM balenalib/"$BUILD_BOARD"-debian-python:bullseye-run-20230530 AS runner
 
 # Install bluez, libdbus, network-manager, python3-gi, and venv
 RUN \
@@ -76,7 +80,7 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # hadolint ignore=DL3008, DL4006
-RUN export DISTRO=bookworm-stable && \
+RUN export DISTRO=bullseye-stable && \
     echo "deb https://apt.radxa.com/$DISTRO/ ${DISTRO%-*} main" | tee -a /etc/apt/sources.list.d/apt-radxa-com.list && \
     wget -nv -O - apt.radxa.com/$DISTRO/public.key | apt-key add - && \
     apt-get update && \
@@ -87,7 +91,7 @@ RUN export DISTRO=bookworm-stable && \
 
 # This is the libmraa install location, because we are using venv
 # it must be added to path explicitly
-ENV PYTHONPATH="$PYTHONPATH:/usr/local/lib/python3.12/dist-packages"
+ENV PYTHONPATH="$PYTHONPATH:/usr/local/lib/python3.9/dist-packages"
 
 # Run start-gateway-config script
 ENTRYPOINT ["/opt/start-gateway-config.sh"]

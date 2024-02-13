@@ -12,7 +12,7 @@ export_param_if_not_exists() {
         echo "${name} is set as ${contents}.";
         success_func=1
     else
-        echo "Error: Cannot set ${name} variable.";
+        echo "Error: ${name} not set in env or ${base_path}.";
         success_func=0
     fi
 }
@@ -43,8 +43,8 @@ else
 fi
 
 if [[ $success_variant != 1 ]]; then
-    echo "Error: Required VARIANT parameter has not been set. Container will be reset after 10 sec."
-    sleep 10     # sleep for some time before exiting and make the container restart. This would give diagnostics a chance to create necessary data
+    echo "Error: Required VARIANT parameter has not been set. Container will be reset after 60 sec."
+    sleep 60     # sleep for some time before exiting and make the container restart. This would give diagnostics a chance to create necessary data
     exit 1
 fi
 
