@@ -1,5 +1,107 @@
 # hm-config: Helium Miner Config Container
 
+# building from Windows
+
+gpiozero does not support python > 3.9  
+Until they fix it https://github.com/gpiozero/gpiozero/blob/master/gpiozero/devices.py  
+Also libmraa (rock pi) does not support OS > bookworm (and we switched to bullseye)
+
+Install required tools:  
+```powershell
+#pyenv
+Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/pyenv-win/pyenv-win/master/pyenv-win/install-pyenv-win.ps1" -OutFile "./install-pyenv-win.ps1"; &"./install-pyenv-win.ps1"
+
+#python 3.9.13
+pyenv install 3.9.13
+pyenv global 3.9.13
+python -m pip install --upgrade pip
+
+#install pipx then poetry
+python -m pip install --user pipx
+python -m pipx install poetry
+
+#Suppose docker is already installed
+```
+
+Go the the project root folder and:
+```powershell
+poetry lock
+```
+
+Note: after you change the content of `pyproject.toml`, update `poetry.lock`.
+
+Build docker image, then push the docker image to `docker_ip`:
+```powershell
+docker buildx build --platform linux/arm64 .
+docker tag <image_id> vapolia/hm-config:latest
+docker save -o hm.tar vapolia/hm-config:latest
+scp hm.tar user@docker_ip:~
+
+#on the docker_ip machine:
+sudo docker load -i hm.tar
+```
+
+Test:  
+```bash
+#change the values of VARIANT (miner brand and model), E0 (ethernet MAC), W0 (Wifi MAC), FRIENDLY, serial_number, RE (region)
+VARIANT='sensecap-fl1'  
+
+cat <<EOF > diag.json
+{
+  "last_updated": "19:29 UTC 11 Feb 2024",
+
+  "AN": "helium-vapolia-ant",
+  "APPNAME": "Crankk miner",
+
+  "VA": "$VARIANT",
+  "BT": true,
+  "TYPE": "Full",
+  "BUTTON": 27,
+  "RESET": 17,
+  "STATUS": 22,
+  "SPIBUS": "spidev0.0",
+  "CELLULAR": false,
+  "E0": "FF:EE:DD:69:88:11",
+  "W0": "CC:DD:BB:69:88:12",
+
+  "FRIENDLY": "Crank's miner",
+  "serial_number": "001122",
+
+  "FW": "1.0.3",
+  "OK": "solana-wallet-address",
+  "PK": "solana-wallet-address",
+  "RE": "EU868",
+
+  "PF": true,
+  "firmware_short_hash": "?"
+}
+EOF
+
+#VARIANT: get one from the list https://github.com/NebraLtd/hm-pyhelper/blob/master/hm_pyhelper/hardware_definitions.py
+#For ex: 'pisces-fl1' for Pisces P100, 'sensecap-fl1' for sensecapM1
+heliumVersion=$(sudo docker exec miner helium_gateway --version)
+
+#NET_ADMIN required, as it can configure the Wifi
+#privileged required to access the system dbus, to add the bluetooth service
+#note: the ble calls controlling the helium miner are non functional (ie: onboard, assert location, ...): they require the session dbus.
+
+sudo docker run -d --name helium-config \
+    --privileged \
+    --net=host \
+    --cap-add NET_ADMIN \
+    -v $HOME/diag.json:/usr/src/diag.json \
+    -e VARIANT="$VARIANT" \
+    -e FIRMWARE_VERSION="$heliumVersion" \
+    -e DIAGNOSTICS_JSON_URL="file:///usr/src/diag.json" \
+    -v /run/dbus:/host/run/dbus \
+    -v /sys/kernel/debug:/sys/kernel/debug \
+    -e DBUS_SYSTEM_BUS_ADDRESS="unix:path=/host/run/dbus/system_bus_socket" \
+    vapolia/hm-config
+```
+
+
+# intro
+
 This repository contains the Dockerfile, basic scripts  and additional libraries required for the BTLE Application tool.
 [helium/gateway-config](https://github.com/helium/gateway-config) is the upstream repo that this is built against.
 
@@ -20,51 +122,7 @@ Running locally:
 PYTHONPATH=./ MINER_KEYS_FILEPATH=./example/onboarding_key.txt ETH0_MAC_ADDRESS_PATH=./example/eth0_mac_address.txt python minerconfig
 ```
 
-Because the stack is tightly intertwined with Balena, the easiest way to test the code base on your own Raspberry Pi in your own Balena project.
 The code has been developped and tested with the Raspberry Pi 3 B+. There are a few ways to build this app:
-
-1. Cross-compile locally and deploy to Balena: `balena deploy dev-XXX --build` (preferred method)
-2. Cross-compile locally only: `docker buildx build --platform linux/arm64 .`
-3. ARM build on Balena: `git push balena YourLocalBranch:master` (deprecated)
-4. Build directly on device with [local mode](https://www.balena.io/docs/learn/develop/local-mode/): `balena push local` (over 10 hours)
-
-
-```
-balena deploy hm-diag --build --debug
-```
-
-### Balena setup
-* Create a new Balena project for Raspberry Pi 3 (64 Bit)
-* Download and flash out the disk image provided and boot the device
-* Add the remote Balena repo (`git remote add balena BALENA_USERNAME@git.balena-cloud.com:BALENA_USERNAME/BALENA_PROJECT.git`)
-* The following ENV variables must be set: `FREQ`, `SENTRY_CONFIG`, `SENTRY_DIAG`, `SENTRY_PKTFWD`, and `VARIANT`
-* Add the remote Balena repo (`git remote add balena YourUser@git.balena-cloud.com:YourUser/YourProject.git`)
-
-You can now push your changes using the following command:
-
-```
-$ git push balena YourLocalBranch:master
-```
-
-### Setting up Python on Ubuntu
-
-These are optional instructions to have an Ubuntu environment closely mimic production.
-
-1. Install pyenv: `curl https://pyenv.run | bash`
-2. Install Python 3.7.3 dependency:
-
-```
-sudo apt-get install -y libffi-dev libssl-dev make build-essential libssl-dev zlib1g-dev libbz2-dev \
-    libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
-    xz-utils tk-dev libffi-dev liblzma-dev python-openssl git \
-     libdbus-glib-1-dev libgirepository1.0-dev python3-gi bluez
-```
-3. Install Python 3.9.16: `pyenv install 3.9.16 && pyenv local 3.9.16`
-4. Check correctly installed: `python -V`
-5. Setup virtualenv: `python3 -m venv venv && source venv/bin/activate`
-6. Install python `wheel` package: `python3 -m pip install wheel`
-7. Install `poetry` package: `python3 -m pip install poetry`
-7. Install dependencies: `poetry install --with dev`
 
 ## Testing
 
@@ -86,7 +144,4 @@ poetry run pytest --cov=gatewayconfig --cov=lib --cov-fail-under=70
 ## Pre built containers
 
 This repo automatically builds docker containers and uploads them to two repositories for easy access:
-- [hm-config on DockerHub](https://hub.docker.com/r/nebraltd/hm-config)
-- [hm-config on GitHub Packages](https://github.com/NebraLtd/hm-config/pkgs/container/hm-config)
-
-The images are tagged using the docker long and short commit SHAs for that release. The current version deployed to miners can be found in the [helium-miner-software repo](https://github.com/NebraLtd/helium-miner-software/blob/production/docker-compose.yml).
+- [hm-config on DockerHub](https://hub.docker.com/r/vapolia/hm-config)

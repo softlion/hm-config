@@ -1,7 +1,9 @@
 import os
+import pprint
 
 from gatewayconfig.gatewayconfig_app import GatewayconfigApp
 from gatewayconfig.logger import get_logger
+from hm_pyhelper.hardware_definitions import variant_definitions
 
 LOGGER = get_logger(__name__)
 VARIANT = os.getenv('VARIANT')
@@ -51,6 +53,10 @@ def validate_env():
             ETHERNET_IS_ONLINE_FILEPATH,
             FIRMWARE_VERSION
         ))
+    
+    vd = variant_definitions[VARIANT]
+    vds = pprint.pformat(vd)
+    LOGGER.debug("Variant definitions for '%s':\n%s", VARIANT, vds)
 
 
 def start():
